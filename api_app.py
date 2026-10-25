@@ -7,7 +7,26 @@ app = Flask(__name__)
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "app": "storytimetik-api", "version": "2.0.0"})
+    return jsonify({"status": "ok", "app": "storytimetik-api", "version": "2.5.0"})
+
+@app.route('/render-video', methods=['POST'])
+def render_video_endpoint():
+    data = request.get_json(silent=True) or {}
+    story_data = data.get('story')
+    if not story_data or 'scenes' not in story_data:
+        archetype = data.get('archetype', 'confession')
+        story_data = generate_story_script(archetype=archetype)
+    
+    fps = int(data.get('fps', 15))
+    import tempfile
+    output_mp4 = os.path.join(tempfile.gettempdir(), 'rendered_api_story.mp4')
+    from utils.video_compiler import assemble_story_video
+    success = assemble_story_video(story_data['scenes'], output_mp4, fps=fps)
+    return jsonify({
+        "status": "success" if success else "error",
+        "video_path": output_mp4 if success else None,
+        "exists": os.path.exists(output_mp4)
+    })
 
 @app.route('/trends', methods=['GET'])
 def trends():

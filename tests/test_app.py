@@ -46,5 +46,11 @@ class TestStorytimeTikSuite(unittest.TestCase):
         audio = synthesize_audio("")
         self.assertIsNone(audio)
 
+    def test_video_compiler_subtitled_frame(self):
+        from utils.video_compiler import create_subtitled_frame
+        frame = create_subtitled_frame("Test story hook", "Highlight")
+        self.assertEqual(len(frame.shape), 3)
+        self.assertEqual(frame.shape[2], 3)
+
 if __name__ == "__main__":
     unittest.main()

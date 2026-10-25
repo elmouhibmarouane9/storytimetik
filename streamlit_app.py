@@ -1,13 +1,15 @@
 import os
 import json
+import tempfile
 import streamlit as st
 from utils.story_engine import generate_story_script, analyze_hook_strength, STORY_ARCHETYPES
 from utils.voice_synth import synthesize_audio
+from utils.video_compiler import assemble_story_video
 from utils.content_generator import fetch_trending_topics, generate_seo_article
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="StorytimeTik Studio & Creator Engine",
+    page_title="StorytimeTik — TikTok Video & Storytime Studio",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -47,25 +49,18 @@ st.markdown("""
         margin-right: 6px;
         margin-bottom: 6px;
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        border-radius: 8px 8px 0px 0px;
-        font-weight: 600;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # 2. Sidebar Navigation & Global Controls
 st.sidebar.markdown("## 🎬 StorytimeTik Studio")
-st.sidebar.caption("v2.0 • AI-Powered Creator & Monetization Engine")
+st.sidebar.caption("v2.5 • AI TikTok Video & Storytime Engine")
 
 module = st.sidebar.radio(
     "Choose Studio Tool:",
     [
-        "⚡ TikTok Storytime Generator",
+        "⚡ TikTok Video & Script Generator",
+        "🎥 Render 9:16 Video MP4",
         "🔍 Hook Virality Inspector",
         "📰 Trending Blog & SEO Machine",
         "🛠️ Interactive Creator Tools"
@@ -75,19 +70,19 @@ module = st.sidebar.radio(
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("⚙️ Settings & API Keys")
-openai_key = st.sidebar.text_input("OpenAI API Key (Optional)", type="password", help="Enables live OpenAI GPT-4o-mini generation. If blank, high-quality built-in heuristics and templates run.")
+openai_key = st.sidebar.text_input("OpenAI API Key (Optional)", type="password", help="Enables live OpenAI GPT generation. If blank, smart built-in heuristic models run seamlessly.")
 if openai_key:
     os.environ["OPENAI_API_KEY"] = openai_key
-    st.sidebar.success("OpenAI Key registered!")
+    st.sidebar.success("OpenAI Key Active!")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Built with Streamlit & Python • Optimized for TikTok, Reels & SEO Automation")
+st.sidebar.caption("StorytimeTik • Vertical 9:16 Short-Form Storytelling Platform")
 
 
 # ==========================================
 # MODULE 1: TikTok Storytime Script Generator
 # ==========================================
-if module == "⚡ TikTok Storytime Generator":
+if module == "⚡ TikTok Video & Script Generator":
     st.markdown('<div class="main-header">⚡ TikTok Storytime Generator</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">Craft retention-engineered storytime scripts complete with timestamps, visual directions, audio hooks, and auto-generated voiceovers.</div>', unsafe_allow_html=True)
 
@@ -151,6 +146,7 @@ if module == "⚡ TikTok Storytime Generator":
             st.markdown("#### 🎙️ Voiceover Audio Preview (TTS)")
             audio_bytes = synthesize_audio(story["full_voiceover"])
             if audio_bytes:
+                st.session_state.current_audio = audio_bytes
                 st.audio(audio_bytes, format="audio/mp3")
                 st.download_button(
                     label="⬇️ Download Voiceover (MP3)",
@@ -158,8 +154,6 @@ if module == "⚡ TikTok Storytime Generator":
                     file_name="storytimetik_voiceover.mp3",
                     mime="audio/mp3"
                 )
-            else:
-                st.info("Voice synthesis preview ready.")
 
             # Scene-by-scene script cards
             st.markdown("#### 🎬 Scene Breakdown")
@@ -194,7 +188,72 @@ if module == "⚡ TikTok Storytime Generator":
 
 
 # ==========================================
-# MODULE 2: Hook Virality Inspector
+# MODULE 2: Render 9:16 Video MP4
+# ==========================================
+elif module == "🎥 Render 9:16 Video MP4":
+    st.markdown('<div class="main-header">🎥 Render 9:16 Storytime Video (MP4)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Compile your story scenes into a ready-to-post 9:16 vertical TikTok/Reels video with animated captions and voiceover.</div>', unsafe_allow_html=True)
+
+    if "current_story" not in st.session_state:
+        st.info("💡 Please generate a story first in '⚡ TikTok Video & Script Generator' or click below to build a quick demo story.")
+        if st.button("Generate Demo Story"):
+            st.session_state.current_story = generate_story_script("confession")
+            st.rerun()
+    else:
+        story = st.session_state.current_story
+        st.write(f"**Active Story:** {story['title']}")
+
+        col_v1, col_v2 = st.columns([1, 1], gap="large")
+
+        with col_v1:
+            st.markdown("#### ⚙️ Video Render Settings")
+            st.write(f"- **Format**: Vertical 9:16 (720x1280 TikTok standard)")
+            st.write(f"- **Scenes**: {len(story['scenes'])} sequence cards")
+            fps_choice = st.selectbox("Render Frame Rate (FPS)", [10, 15, 24], index=1)
+            include_tts = st.checkbox("Include Synthesized Voiceover Track", value=True)
+
+            if st.button("🎬 Compile & Render Video Now", type="primary", use_container_width=True):
+                with st.spinner("Rendering vertical frames and compiling H.264 MP4 with FFmpeg..."):
+                    audio_tmp_path = None
+                    if include_tts:
+                        audio_data = synthesize_audio(story["full_voiceover"])
+                        if audio_data:
+                            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tf:
+                                tf.write(audio_data)
+                                audio_tmp_path = tf.name
+
+                    out_video_path = os.path.join(tempfile.gettempdir(), "storytimetik_export.mp4")
+                    success = assemble_story_video(
+                        scenes=story["scenes"],
+                        output_path=out_video_path,
+                        audio_path=audio_tmp_path,
+                        fps=fps_choice
+                    )
+
+                    if success and os.path.exists(out_video_path):
+                        with open(out_video_path, "rb") as vf:
+                            st.session_state.rendered_video_bytes = vf.read()
+                        st.success("✅ Video compiled successfully!")
+                    else:
+                        st.error("Video compilation encountered an issue.")
+
+        with col_v2:
+            st.markdown("#### 📱 Video Player Preview")
+            if "rendered_video_bytes" in st.session_state:
+                st.video(st.session_state.rendered_video_bytes)
+                st.download_button(
+                    "⬇️ Download Storytime Video (MP4)",
+                    data=st.session_state.rendered_video_bytes,
+                    file_name="storytimetik_video.mp4",
+                    mime="video/mp4",
+                    use_container_width=True
+                )
+            else:
+                st.info("Render your video using the left panel to preview and download the finished MP4 file.")
+
+
+# ==========================================
+# MODULE 3: Hook Virality Inspector
 # ==========================================
 elif module == "🔍 Hook Virality Inspector":
     st.markdown('<div class="main-header">🔍 Hook Virality Inspector</div>', unsafe_allow_html=True)
@@ -227,7 +286,7 @@ elif module == "🔍 Hook Virality Inspector":
 
 
 # ==========================================
-# MODULE 3: Trending Blog & SEO Machine
+# MODULE 4: Trending Blog & SEO Machine
 # ==========================================
 elif module == "📰 Trending Blog & SEO Machine":
     st.markdown('<div class="main-header">📰 Trending Blog & SEO Machine</div>', unsafe_allow_html=True)
@@ -291,7 +350,7 @@ elif module == "📰 Trending Blog & SEO Machine":
 
 
 # ==========================================
-# MODULE 4: Interactive Creator Tools & Portfolio
+# MODULE 5: Interactive Creator Tools & Portfolio
 # ==========================================
 elif module == "🛠️ Interactive Creator Tools":
     st.markdown('<div class="main-header">🛠️ Interactive Creator Tools & Contact</div>', unsafe_allow_html=True)
@@ -333,4 +392,4 @@ elif module == "🛠️ Interactive Creator Tools":
                     st.success(f"Thank you {name}! Your message regarding '{niche}' has been received. We'll reach out to {email} shortly.")
 
 st.markdown("---")
-st.caption("StorytimeTik v2.0 • High-Performance Streamlit Studio & Multi-Platform Content Automation")
+st.caption("StorytimeTik v2.5 • High-Performance Streamlit Studio & Multi-Platform Content Automation")

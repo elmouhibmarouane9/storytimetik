@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Dict, Any, Optional
@@ -12,6 +11,16 @@ FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
 
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
+
+# Clean crisp TrueType fonts available on the system
+FONT_REGULAR_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+FONT_BOLD_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+def _get_font(path: str, size: int):
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        return ImageFont.load_default()
 
 def create_subtitled_frame(
     text: str,
@@ -25,103 +34,105 @@ def create_subtitled_frame(
     reddit_header: Optional[Dict[str, str]] = None
 ) -> np.ndarray:
     """
-    Renders an authentic TikTok split-screen vertical frame:
-    - Top half: Reddit Post card with upvotes, subreddit tag, or clean Story card
-    - Bottom half: Dynamic background loop (Minecraft block parkour, Hypnotic synth tunnel, etc.)
-    - Center/Overlay: Karaoke bouncing subtitle highlighting the exact spoken word
-    - Bottom: Glowing progress bar
+    Renders a high-converting, crisp 9:16 vertical video frame:
+    - Dynamic gameplay background
+    - Crisp Reddit / Story Card
+    - Bold bouncing karaoke subtitles
+    - Active retention bar
     """
+    font_bold_lg = _get_font(FONT_BOLD_PATH, 28)
+    font_bold_md = _get_font(FONT_BOLD_PATH, 22)
+    font_bold_sm = _get_font(FONT_BOLD_PATH, 18)
+    font_reg_md = _get_font(FONT_REGULAR_PATH, 22)
+    font_reg_sm = _get_font(FONT_REGULAR_PATH, 16)
+
     # 1. Background layer
     bg_arr = get_procedural_background_frame(background_type, width, height, frame_idx)
-    img = Image.fromarray(bg_arr)
-    draw = ImageDraw.Draw(img)
+    img = Image.fromarray(bg_arr).convert("RGBA")
 
-    # 2. Reddit Header Card (or Story Card) in top-center zone
+    # 2. Card overlay
     card_margin = 35
-    card_top = 80
-    card_height = 240
+    card_top = 70
+    card_height = 230
     card_bottom = card_top + card_height
 
-    # Semi-transparent dark card backing
     overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
     overlay_draw.rounded_rectangle(
         [(card_margin, card_top), (width - card_margin, card_bottom)],
-        radius=20,
-        fill=(24, 25, 34, 230),
-        outline=(255, 255, 255, 60),
+        radius=18,
+        fill=(16, 18, 26, 240),
+        outline=(255, 255, 255, 70),
         width=2
     )
 
-    img.paste(Image.alpha_composite(Image.new("RGBA", img.size, (0, 0, 0, 0)), overlay).convert("RGB"), (0, 0))
+    img = Image.alpha_composite(img, overlay).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # Subreddit / Channel Badge
+    # Reddit header metadata
     sub_title = reddit_header.get("subreddit", "r/Confession") if reddit_header else "r/StorytimeTik"
     author_tag = reddit_header.get("author", "u/ViralCreator") if reddit_header else "u/StorytimeTik"
     upvotes = reddit_header.get("upvotes", "32.4K") if reddit_header else "48.2K"
 
-    draw.text((card_margin + 25, card_top + 25), f"🔴 {sub_title} • Posted by {author_tag}", fill=(180, 185, 200))
-    draw.text((width - card_margin - 30, card_top + 25), f"⬆️ {upvotes}", fill=(255, 90, 40), anchor="ra")
+    # Badges
+    draw.text((card_margin + 20, card_top + 20), f"{sub_title} • Posted by {author_tag}", font=font_reg_sm, fill=(180, 190, 210))
+    draw.text((width - card_margin - 25, card_top + 18), f"▲ {upvotes}", font=font_bold_sm, fill=(255, 90, 40), anchor="ra")
 
-    # Hook / Title on Card
+    # Card Title
     card_text = reddit_header.get("title", text) if reddit_header else text
     words_c = card_text.split()
     lines_c = []
     cur = []
     for w in words_c:
         cur.append(w)
-        if len(" ".join(cur)) > 28:
+        if len(" ".join(cur)) > 26:
             lines_c.append(" ".join(cur[:-1]))
             cur = [w]
     if cur:
         lines_c.append(" ".join(cur))
 
-    ty = card_top + 70
+    ty = card_top + 65
     for l in lines_c[:3]:
-        draw.text((card_margin + 25, ty), l, fill=(255, 255, 255))
-        ty += 40
+        draw.text((card_margin + 20, ty), l, font=font_bold_md, fill=(255, 255, 255))
+        ty += 34
 
-    # 3. Karaoke Bouncing Subtitles in the lower-middle focal zone (y ~ 720 to 880)
+    # 3. Karaoke Bouncing Subtitle Box in focal zone
     words = text.split()
-    karaoke_y = int(height * 0.62)
+    karaoke_y = int(height * 0.64)
 
-    # Subtitle background bubble
-    sub_box_top = karaoke_y - 45
+    sub_box_top = karaoke_y - 50
     sub_box_bottom = karaoke_y + 65
     draw.rounded_rectangle(
-        [(card_margin + 20, sub_box_top), (width - card_margin - 20, sub_box_bottom)],
-        radius=18,
-        fill=(10, 10, 14),
+        [(card_margin + 15, sub_box_top), (width - card_margin - 15, sub_box_bottom)],
+        radius=16,
+        fill=(10, 12, 18),
         outline=(255, 215, 0),
         width=2
     )
 
-    # Word wrapping for spoken text with active-word highlight
     chunk_size = 4
     chunk_start = max(0, (active_word_idx // chunk_size) * chunk_size)
     chunk_words = words[chunk_start:chunk_start + chunk_size]
 
     start_x = width // 2
     rendered_chunk = " ".join(chunk_words)
-    draw.text((start_x, karaoke_y), rendered_chunk, fill=(255, 255, 255), anchor="mm")
+    draw.text((start_x, karaoke_y - 12), rendered_chunk, font=font_reg_md, fill=(255, 255, 255), anchor="mm")
 
-    # Highlight current spoken word
     highlight_word = words[active_word_idx] if active_word_idx < len(words) else ""
     if highlight_word:
-        draw.text((start_x, karaoke_y + 35), f"🗣️ [{highlight_word.upper()}]", fill=(255, 230, 0), anchor="mm")
+        draw.text((start_x, karaoke_y + 26), f"► {highlight_word.upper()} ◄", font=font_bold_lg, fill=(255, 235, 20), anchor="mm")
 
     # 4. On-Screen Climax / Visual Cue Pill
     if subtext:
         cue_y = int(height * 0.86)
         draw.rounded_rectangle(
-            [(width // 2 - 200, cue_y - 20), (width // 2 + 200, cue_y + 20)],
+            [(width // 2 - 180, cue_y - 24), (width // 2 + 180, cue_y + 24)],
             radius=14,
             fill=(255, 0, 80)
         )
-        draw.text((width // 2, cue_y), f"⚡ {subtext}", fill=(255, 255, 255), anchor="mm")
+        draw.text((width // 2, cue_y), f"★ {subtext}", font=font_bold_sm, fill=(255, 255, 255), anchor="mm")
 
-    # 5. Glowing Retention Progress Bar at the base
+    # 5. Glowing Retention Progress Bar
     bar_width = int(width * progress)
     draw.rectangle([(0, height - 16), (width, height)], fill=(30, 30, 40))
     draw.rectangle([(0, height - 16), (bar_width, height)], fill=(255, 0, 80))
@@ -137,10 +148,6 @@ def assemble_story_video(
     background_type: str = "minecraft",
     reddit_header: Optional[Dict[str, str]] = None
 ) -> bool:
-    """
-    Compiles story scenes into a vertical MP4 video with synced karaoke subtitles,
-    split-screen gameplay background, frame animations, and audio.
-    """
     try:
         temp_dir = tempfile.mkdtemp()
         frame_pattern = os.path.join(temp_dir, "frame_%05d.png")
@@ -157,7 +164,6 @@ def assemble_story_video(
             word_count = max(1, len(scene_words))
 
             for f in range(num_frames):
-                # Calculate active word index based on time progress in the scene
                 progress_in_scene = f / float(num_frames)
                 active_word_idx = min(word_count - 1, int(progress_in_scene * word_count))
                 global_progress = (s_idx * num_frames + f) / float(total_scenes * num_frames)

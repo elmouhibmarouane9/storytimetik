@@ -58,22 +58,25 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Sidebar Navigation
-st.sidebar.markdown("## 🎬 StorytimeTik Studio")
-st.sidebar.caption("v3.0 • Full-Stack Viral TikTok & Short-Form Engine")
+    # 2. Sidebar Navigation
+    st.sidebar.markdown("## 🎬 StorytimeTik Studio")
+    st.sidebar.caption("v3.0 • Full-Stack Viral TikTok & Short-Form Engine")
 
-module = st.sidebar.radio(
-    "Choose Creator Tool:",
-    [
-        "🔥 Reddit Viral Story Ingestion",
-        "⚡ Custom Storytime Script Generator",
-        "🎥 Render 9:16 Split-Screen Video",
-        "🔍 Hook Virality Inspector",
-        "📅 Push to Notion Content Hub",
-        "📰 Trending Blog & SEO Machine"
-    ],
-    index=0
-)
+    # Live studio status badge
+    st.sidebar.success("🟢 Studio Live (Port 8501)")
+
+    module = st.sidebar.radio(
+        "Choose Creator Tool:",
+        [
+            "🔥 Reddit Viral Story Ingestion",
+            "⚡ Custom Storytime Script Generator",
+            "🎥 Render 9:16 Split-Screen Video",
+            "🔍 Hook Virality Inspector",
+            "📅 Push to Notion Content Hub",
+            "📰 Trending Blog & SEO Machine"
+        ],
+        index=2
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎙️ Voice Character")
